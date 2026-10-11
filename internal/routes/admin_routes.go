@@ -393,6 +393,31 @@ func (r *Router) adminRoutes() []okapi.RouteDefinition {
 			},
 		},
 
+		// ==================== Workspaces ====================
+		{
+			Method:      http.MethodGet,
+			Path:        pathWorkspaces,
+			Handler:     okapi.H(r.h.adminWorkspace.List),
+			Group:       adminGroup,
+			Summary:     "List all workspaces",
+			Description: "Platform-wide workspace list with owner, plan and member count, filterable by name/slug, owner, and plan.",
+			Request:     &handlers.AdminListWorkspacesRequest{},
+			Response:    &dto.PageableResponse[handlers.AdminWorkspaceRow]{},
+		},
+		{
+			Method:      http.MethodGet,
+			Path:        pathWorkspaceByID,
+			Handler:     okapi.H(r.h.adminWorkspace.Get),
+			Group:       adminGroup,
+			Summary:     "Get a workspace",
+			Description: "Returns the workspace with its members, pending invitation count, and resource usage.",
+			Response:    &dto.Response[handlers.AdminWorkspaceDetail]{},
+			Options: []okapi.RouteOption{
+				okapi.DocPathParam("id", "integer", "Workspace ID"),
+				okapi.DocErrorResponse(404, &dto.ErrorResponseBody{}),
+			},
+		},
+
 		// ==================== Plans ====================
 		{
 			Method:      http.MethodPost,

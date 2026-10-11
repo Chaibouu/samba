@@ -109,6 +109,8 @@ const routes = [
       // links; keep the old path working for bookmarks and muscle memory.
       { path: 'admin/metrics', redirect: '/admin/dashboard' },
       { path: 'admin/announcements', name: 'admin-announcements', component: () => import('../views/admin/Announcements.vue'), meta: { admin: true, title: 'Admin · Announcements' } },
+      { path: 'admin/workspaces', name: 'admin-workspaces', component: () => import('../views/admin/Workspaces.vue'), meta: { admin: true, title: 'Admin · Workspaces' } },
+      { path: 'admin/workspaces/:id', name: 'admin-workspace-detail', component: () => import('../views/admin/WorkspaceDetail.vue'), meta: { admin: true, title: 'Admin · Workspace' } },
       { path: 'admin/domains', name: 'admin-domains', component: () => import('../views/admin/Domains.vue'), meta: { admin: true, title: 'Admin · Domains' } },
       { path: 'admin/domains/:id', name: 'admin-domain-detail', component: () => import('../views/admin/DomainDetail.vue'), meta: { admin: true, title: 'Admin · Domain' } },
       { path: 'admin/events', name: 'admin-events', component: () => import('../views/admin/Events.vue'), meta: { admin: true, title: 'Admin · Events' } },

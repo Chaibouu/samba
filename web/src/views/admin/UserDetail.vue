@@ -480,7 +480,7 @@ function formatDate(date: string) {
             </thead>
             <tbody>
               <tr v-for="ws in workspaces" :key="ws.id">
-                <td>{{ ws.name }}</td>
+                <td><router-link :to="`/admin/workspaces/${ws.id}`">{{ ws.name }}</router-link></td>
                 <td><code>{{ ws.slug }}</code></td>
                 <td>
                   <select

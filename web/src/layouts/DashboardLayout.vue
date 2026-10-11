@@ -226,6 +226,7 @@ const navSections: NavSection[] = [
       // The dashboard is the landing page for this section, so it leads.
       { name: 'Dashboard', path: '/admin/dashboard', icon: 'pie-chart' },
       { name: 'Users', path: '/admin/users', icon: 'users' },
+      { name: 'Workspaces', path: '/admin/workspaces', icon: 'briefcase' },
       { name: 'Plans', path: '/admin/plans', icon: 'layers' },
       { name: 'Shared Servers', path: '/admin/servers', icon: 'server' },
       { name: 'Domains', path: '/admin/domains', icon: 'globe' },

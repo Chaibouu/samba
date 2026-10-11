@@ -441,6 +441,48 @@ export interface AdminDomainDetail extends AdminDomainRow {
   conflict_workspace_name?: string
 }
 
+export interface AdminWorkspaceRow {
+  id: number
+  name: string
+  slug: string
+  system: boolean
+  owner_id: number
+  owner_name: string
+  owner_email: string
+  plan_id: number | null
+  plan_name: string
+  member_count: number
+  created_at: string
+}
+
+export interface AdminWorkspaceMember {
+  user_id: number
+  name: string
+  email: string
+  active: boolean
+  role: WorkspaceRole
+  joined_at: string
+}
+
+export interface AdminWorkspaceDetail extends AdminWorkspaceRow {
+  description: string
+  default_language: string
+  updated_at: string
+  members: AdminWorkspaceMember[]
+  pending_invitations: number
+  usage: {
+    emails: number
+    templates: number
+    contacts: number
+    subscribers: number
+    campaigns: number
+    domains: number
+    smtp_servers: number
+    api_keys: number
+    webhooks: number
+  }
+}
+
 export interface AdminDomainVerifyResult {
   domain: Domain
   verification: {
