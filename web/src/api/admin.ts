@@ -3,6 +3,7 @@ import type {
   ApiResponse, PaginatedResponse, User, ApiKey, Email, Event, AdminMetrics,
   UserDetailMetrics, CronJob, AdminWorkspace, UpdateInfo,
   Domain, AdminDomainRow, AdminDomainDetail, AdminDomainVerifyResult,
+  AdminWorkspaceRow, AdminWorkspaceDetail,
 } from './types'
 import type { Announcement, AnnouncementInput } from './inbox'
 
@@ -43,6 +44,22 @@ export const adminApi = {
       ownership_verified: ownershipVerified,
       reason,
     })
+  },
+
+  // ---- Workspaces (platform-wide) ----
+  listWorkspaces(page = 0, size = 20, search = '', plan = 0, owner = 0) {
+    return api.get<PaginatedResponse<AdminWorkspaceRow>>('/admin/workspaces', {
+      params: {
+        page,
+        size,
+        search: search || undefined,
+        plan: plan || undefined,
+        owner: owner || undefined,
+      },
+    })
+  },
+  getWorkspace(id: number) {
+    return api.get<ApiResponse<AdminWorkspaceDetail>>(`/admin/workspaces/${id}`)
   },
 
   createUser(name: string, email: string, password: string, role: string) {

@@ -34,6 +34,7 @@ const (
 	pathSettings      = "/settings"
 	pathSuppressions  = "/suppressions"
 	pathWebhooks      = "/webhooks"
+	pathWorkspaces    = "/workspaces"
 
 	pathAnnouncementByID      = "/announcements/{id:int}"
 	pathCampaignByID          = "/campaigns/{id:int}"
@@ -46,4 +47,5 @@ const (
 	pathSubscriberListByID    = "/subscriber-lists/{id:int}"
 	pathSubscriberListMembers = "/subscriber-lists/{id:int}/members"
 	pathUnsubscribeListByID   = "/unsubscribe-lists/{id:int}"
+	pathWorkspaceByID         = "/workspaces/{id:int}"
 )

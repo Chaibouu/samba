@@ -20,6 +20,7 @@
 package repositories
 
 import (
+	"strings"
 	"time"
 
 	"github.com/goposta/posta/internal/models"
@@ -79,6 +80,46 @@ func (r *WorkspaceRepository) FindAll() ([]models.Workspace, error) {
 		return nil, err
 	}
 	return workspaces, nil
+}
+
+// AdminWorkspaceFilter narrows the platform-wide workspace list.
+type AdminWorkspaceFilter struct {
+	Search  string
+	OwnerID *uint
+	PlanID  *uint
+}
+
+// FindAllFiltered pages through every workspace for the admin console. The
+// system workspace sorts first so it is easy to find, then newest first.
+func (r *WorkspaceRepository) FindAllFiltered(f AdminWorkspaceFilter, limit, offset int) ([]models.Workspace, int64, error) {
+	var items []models.Workspace
+	var total int64
+
+	apply := func(q *gorm.DB) *gorm.DB {
+		if s := strings.TrimSpace(f.Search); s != "" {
+			like := "%" + strings.ToLower(s) + "%"
+			q = q.Where("LOWER(name) LIKE ? OR LOWER(slug) LIKE ?", like, like)
+		}
+		if f.OwnerID != nil {
+			q = q.Where("owner_id = ?", *f.OwnerID)
+		}
+		if f.PlanID != nil {
+			q = q.Where("plan_id = ?", *f.PlanID)
+		}
+		return q
+	}
+
+	if err := apply(r.db.Model(&models.Workspace{})).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if err := apply(r.db).
+		Order("system DESC, created_at DESC").
+		Limit(limit).Offset(offset).
+		Find(&items).Error; err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
 }
 
 // FindByUserID returns all workspaces the user is a member of. The system
