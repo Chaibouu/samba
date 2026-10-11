@@ -85,6 +85,7 @@ func (h *SMTPCredentialHandler) Create(c *okapi.Context, req *CreateSMTPCredenti
 		"password":   password,
 		"host":       h.cfg.SMTPRelayHostname,
 		"port":       h.cfg.SMTPRelayPort,
+		"encryption": h.cfg.SMTPRelayTLSMode,
 		"created_at": cred.CreatedAt,
 		"message":    "Save this password securely. It will not be shown again.",
 	})
