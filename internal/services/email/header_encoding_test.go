@@ -59,3 +59,35 @@ func TestBuildMessageSubjectSplitsBetweenWords(t *testing.T) {
 		}
 	}
 }
+
+// RFC 5322 recommends header lines of at most 78 characters, and RFC 2047
+// limits a line that carries encoded-words to 76, so long subjects must be
+// folded.
+func TestBuildMessageFoldsLongSubject(t *testing.T) {
+	for _, subject := range []string{
+		strings.TrimSpace(strings.Repeat("New rooms found for 3 subscriptions. ", 30)),
+		strings.TrimSpace(strings.Repeat("Места появились по 3 подпискам. ", 30)),
+	} {
+		raw := buildMessage("sender@example.com", []string{"rcpt@example.com"},
+			subject, "", "body", nil, nil, "", "", false)
+
+		head, _, _ := strings.Cut(string(raw), "\r\n\r\n")
+		for _, line := range strings.Split(head, "\r\n") {
+			limit := 78
+			if encodedWordRe.MatchString(line) {
+				limit = 76
+			}
+			if len(line) > limit {
+				t.Errorf("header line is %d characters, want <= %d: %s", len(line), limit, line)
+			}
+		}
+
+		msg, err := mail.ReadMessage(strings.NewReader(string(raw)))
+		if err != nil {
+			t.Fatalf("built message does not parse: %v", err)
+		}
+		if got, _ := new(mime.WordDecoder).DecodeHeader(msg.Header.Get("Subject")); got != subject {
+			t.Errorf("folded subject decodes as %q, want %q", got, subject)
+		}
+	}
+}

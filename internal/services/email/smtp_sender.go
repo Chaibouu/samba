@@ -316,11 +316,12 @@ func isASCII(s string) bool {
 // only at spaces; a break inside a word would reach the reader as a stray space.
 func encodeHeader(s string) string {
 	if mime.BEncoding.Encode("UTF-8", s) == s {
-		return s
+		return foldPlain(s)
 	}
-	// 45 bytes encode to 60 base64 characters, which keeps each encoded-word
-	// within the 75 characters RFC 2047 allows.
-	const limit = 45
+	// 39 bytes encode to 52 base64 characters, so even the first line, after
+	// "Subject: ", stays within the 76 characters RFC 2047 allows a line that
+	// carries encoded-words.
+	const limit = 39
 	chunks := []string{""}
 	for i, w := range strings.Split(s, " ") {
 		if i > 0 {
@@ -339,7 +340,27 @@ func encodeHeader(s string) string {
 	for i, c := range chunks {
 		chunks[i] = "=?UTF-8?b?" + base64.StdEncoding.EncodeToString([]byte(c)) + "?="
 	}
-	return strings.Join(chunks, " ")
+	return strings.Join(chunks, "\r\n ")
+}
+
+// foldPlain folds plain text at spaces so that, after "Subject: ", each line
+// stays within the 78 characters RFC 5322 §2.1.1 recommends.
+func foldPlain(s string) string {
+	var b strings.Builder
+	n := len("Subject: ")
+	for i, w := range strings.Split(s, " ") {
+		if i > 0 {
+			if w != "" && n+1+len(w) > 78 {
+				b.WriteString("\r\n")
+				n = 0
+			}
+			b.WriteByte(' ')
+			n++
+		}
+		b.WriteString(w)
+		n += len(w)
+	}
+	return b.String()
 }
 
 // hasHeader reports whether the caller-supplied headers already include key
