@@ -1405,6 +1405,9 @@ func resolveSenderWithDefault(from, defaultName string) string {
 	if defaultName == "" {
 		return from
 	}
+	if !isASCII(defaultName) {
+		return strings.Join(encodeWords(defaultName), " ") + " <" + addr.Address + ">"
+	}
 	return (&mail.Address{Name: defaultName, Address: addr.Address}).String()
 }
 

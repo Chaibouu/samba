@@ -91,3 +91,37 @@ func TestBuildMessageFoldsLongSubject(t *testing.T) {
 		}
 	}
 }
+
+// The workspace default sender name is encoded the same way, so a long
+// non-ASCII name must also break only between words and stay within the
+// RFC 2047 line limit.
+func TestBuildMessageDefaultSenderNameSplitsBetweenWords(t *testing.T) {
+	const name = "Акме — компания, которая производит абсолютно всё"
+	from := resolveSenderWithDefault("noreply@example.com", name)
+	raw := buildMessage(from, []string{"rcpt@example.com"},
+		"subject", "", "body", nil, nil, "", "", false)
+
+	head, _, _ := strings.Cut(string(raw), "\r\n\r\n")
+	for _, line := range strings.Split(head, "\r\n") {
+		if encodedWordRe.MatchString(line) && len(line) > 76 {
+			t.Errorf("header line is %d characters, want <= 76: %s", len(line), line)
+		}
+	}
+
+	msg, err := mail.ReadMessage(strings.NewReader(string(raw)))
+	if err != nil {
+		t.Fatalf("built message does not parse: %v", err)
+	}
+	addrs, err := msg.Header.AddressList("From")
+	if err != nil || len(addrs) != 1 || addrs[0].Name != name {
+		t.Fatalf("From parses as %v (%v), want name %q", addrs, err, name)
+	}
+
+	naive := encodedWordRe.ReplaceAllStringFunc(msg.Header.Get("From"), func(w string) string {
+		s, _ := new(mime.WordDecoder).Decode(w)
+		return s
+	})
+	if want := name + " <noreply@example.com>"; strings.Join(strings.Fields(naive), " ") != want {
+		t.Errorf("From arrives as %q, want %q", naive, want)
+	}
+}

@@ -310,14 +310,20 @@ func isASCII(s string) bool {
 	return true
 }
 
-// encodeHeader encodes s as RFC 2047 encoded-words for an unstructured header
-// such as Subject. RFC 2047 ignores the whitespace between encoded-words, but
-// some relays keep it when they re-encode the header, so encoded-words break
-// only at spaces; a break inside a word would reach the reader as a stray space.
+// encodeHeader encodes s for an unstructured header such as Subject, folding
+// its encoded-words onto separate lines.
 func encodeHeader(s string) string {
 	if mime.BEncoding.Encode("UTF-8", s) == s {
 		return foldPlain(s)
 	}
+	return strings.Join(encodeWords(s), "\r\n ")
+}
+
+// encodeWords encodes s as RFC 2047 encoded-words. RFC 2047 ignores the
+// whitespace between encoded-words, but some relays keep it when they
+// re-encode the header, so encoded-words break only at spaces; a break inside
+// a word would reach the reader as a stray space.
+func encodeWords(s string) []string {
 	// 39 bytes encode to 52 base64 characters, so even the first line, after
 	// "Subject: ", stays within the 76 characters RFC 2047 allows a line that
 	// carries encoded-words.
@@ -340,7 +346,7 @@ func encodeHeader(s string) string {
 	for i, c := range chunks {
 		chunks[i] = "=?UTF-8?b?" + base64.StdEncoding.EncodeToString([]byte(c)) + "?="
 	}
-	return strings.Join(chunks, "\r\n ")
+	return chunks
 }
 
 // foldPlain folds plain text at spaces so that, after "Subject: ", each line
@@ -391,7 +397,9 @@ func newBoundary() string {
 func buildMessage(from string, to []string, subject, htmlBody, textBody string, attachments []models.Attachment, headers map[string]string, listUnsubscribeURL, listUnsubscribeMailto string, listUnsubscribePost bool) []byte {
 	var b strings.Builder
 
-	fmt.Fprintf(&b, "From: %s\r\n", from)
+	// Fold between encoded-words only when writing the header: from is still
+	// parsed with net/mail, which cannot read a folded address.
+	fmt.Fprintf(&b, "From: %s\r\n", strings.ReplaceAll(from, "?= =?", "?=\r\n =?"))
 	fmt.Fprintf(&b, "To: %s\r\n", strings.Join(to, ", "))
 	fmt.Fprintf(&b, "Subject: %s\r\n", encodeHeader(subject))
 
