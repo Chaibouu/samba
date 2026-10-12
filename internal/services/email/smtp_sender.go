@@ -34,6 +34,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/goposta/posta/internal/models"
@@ -309,6 +310,38 @@ func isASCII(s string) bool {
 	return true
 }
 
+// encodeHeader encodes s as RFC 2047 encoded-words for an unstructured header
+// such as Subject. RFC 2047 ignores the whitespace between encoded-words, but
+// some relays keep it when they re-encode the header, so encoded-words break
+// only at spaces; a break inside a word would reach the reader as a stray space.
+func encodeHeader(s string) string {
+	if mime.BEncoding.Encode("UTF-8", s) == s {
+		return s
+	}
+	// 45 bytes encode to 60 base64 characters, which keeps each encoded-word
+	// within the 75 characters RFC 2047 allows.
+	const limit = 45
+	chunks := []string{""}
+	for i, w := range strings.Split(s, " ") {
+		if i > 0 {
+			w = " " + w
+		}
+		if n := len(chunks) - 1; chunks[n] != "" && len(chunks[n])+len(w) > limit {
+			chunks = append(chunks, "")
+		}
+		for _, r := range w {
+			if n := len(chunks) - 1; len(chunks[n])+utf8.RuneLen(r) > limit {
+				chunks = append(chunks, "")
+			}
+			chunks[len(chunks)-1] += string(r)
+		}
+	}
+	for i, c := range chunks {
+		chunks[i] = "=?UTF-8?b?" + base64.StdEncoding.EncodeToString([]byte(c)) + "?="
+	}
+	return strings.Join(chunks, " ")
+}
+
 // hasHeader reports whether the caller-supplied headers already include key
 // (header names are case-insensitive per RFC 5322).
 func hasHeader(headers map[string]string, key string) bool {
@@ -339,7 +372,7 @@ func buildMessage(from string, to []string, subject, htmlBody, textBody string, 
 
 	fmt.Fprintf(&b, "From: %s\r\n", from)
 	fmt.Fprintf(&b, "To: %s\r\n", strings.Join(to, ", "))
-	fmt.Fprintf(&b, "Subject: %s\r\n", mime.QEncoding.Encode("UTF-8", subject))
+	fmt.Fprintf(&b, "Subject: %s\r\n", encodeHeader(subject))
 
 	// RFC 5322 requires Date and recommends Message-ID; relays are free to
 	// forward a message without adding them, so emit both unless the caller
