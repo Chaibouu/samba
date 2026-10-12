@@ -125,3 +125,19 @@ func TestBuildMessageDefaultSenderNameSplitsBetweenWords(t *testing.T) {
 		t.Errorf("From arrives as %q, want %q", naive, want)
 	}
 }
+
+// Plain text that merely looks like an encoded-word must reach the reader as
+// written, not be decoded by their client.
+func TestBuildMessageSubjectKeepsLiteralEncodedWordSyntax(t *testing.T) {
+	const subject = "Use =?UTF-8?Q?hi?= in your template"
+	raw := buildMessage("sender@example.com", []string{"rcpt@example.com"},
+		subject, "", "body", nil, nil, "", "", false)
+
+	msg, err := mail.ReadMessage(strings.NewReader(string(raw)))
+	if err != nil {
+		t.Fatalf("built message does not parse: %v", err)
+	}
+	if got, _ := new(mime.WordDecoder).DecodeHeader(msg.Header.Get("Subject")); got != subject {
+		t.Errorf("subject decodes as %q, want %q", got, subject)
+	}
+}

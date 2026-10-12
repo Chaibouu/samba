@@ -311,9 +311,10 @@ func isASCII(s string) bool {
 }
 
 // encodeHeader encodes s for an unstructured header such as Subject, folding
-// its encoded-words onto separate lines.
+// its encoded-words onto separate lines. Plain text containing "=?" is encoded
+// too, or a reader would decode what merely looks like an encoded-word.
 func encodeHeader(s string) string {
-	if mime.BEncoding.Encode("UTF-8", s) == s {
+	if mime.BEncoding.Encode("UTF-8", s) == s && !strings.Contains(s, "=?") {
 		return foldPlain(s)
 	}
 	return strings.Join(encodeWords(s), "\r\n ")
