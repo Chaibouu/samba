@@ -2,9 +2,12 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { emailsApi } from '../../api/emails'
+import { apiKeysApi } from '../../api/apikeys'
+import { smtpApi } from '../../api/smtp'
 import { useNotificationStore } from '../../stores/notification'
 import type { Email } from '../../api/types'
 import Pagination from '../../components/Pagination.vue'
+import MultiSelect from '../../components/MultiSelect.vue'
 import { usePagination } from '../../composables/usePagination'
 import { getToken, hasFlag, setToken, toggleFlag } from '../../composables/searchTokens'
 
@@ -114,49 +117,59 @@ const STATUS_OPTIONS = [
   { value: 'failed', label: 'Failed' },
   { value: 'suppressed', label: 'Suppressed' },
 ]
+// Recipient mailbox providers, as classified by the backend.
+const PROVIDER_OPTIONS = [
+  'Gmail', 'Google Workspace', 'Outlook', 'Yahoo', 'Apple iCloud', 'Yandex',
+  'Proton', 'Zoho', 'Fastmail', 'GMX', 'AOL', 'Other',
+].map((p) => ({ value: p, label: p }))
+const serverHosts = ref<string[]>([])
+const keyNames = ref<string[]>([])
+onMounted(async () => {
+  const [servers, keys] = await Promise.allSettled([smtpApi.list(0, 100), apiKeysApi.list(0, 100)])
+  if (servers.status === 'fulfilled') serverHosts.value = [...new Set(servers.value.data.data.map((s) => s.host))]
+  if (keys.status === 'fulfilled') keyNames.value = keys.value.data.data.map((k) => k.name)
+})
+onBeforeUnmount(clearSearchTimeout)
+
+// Multi-select filters — each stored as a comma-separated `key:` token.
+function listFilter(key: string) {
+  return computed<string[]>({
+    get: () => {
+      const raw = getToken(queryText.value, key)
+      return raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : []
+    },
+    set: (vals: string[]) => {
+      queryText.value = setToken(queryText.value, key, vals.join(','))
+      applySearch()
+    },
+  })
+}
+const statuses = listFilter('status')
+const providers = listFilter('provider')
+const servers = listFilter('server')
+const apiKeys = listFilter('key')
+
+const serverOptions = computed(() => serverHosts.value.map((h) => ({ value: h, label: h })))
+const keyOptions = computed(() => keyNames.value.map((k) => ({ value: k, label: k })))
+
 const statusLabel = (v: string) => STATUS_OPTIONS.find((o) => o.value === v)?.label ?? v
 
-// Status is a multi-select — stored as a comma-separated `status:` token.
-const statuses = computed<string[]>({
-  get: () => {
-    const raw = getToken(queryText.value, 'status')
-    return raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : []
-  },
-  set: (vals: string[]) => {
-    queryText.value = setToken(queryText.value, 'status', vals.join(','))
-    applySearch()
-  },
-})
-function toggleStatus(value: string) {
-  const cur = statuses.value
-  statuses.value = cur.includes(value) ? cur.filter((s) => s !== value) : [...cur, value]
-}
-const statusSummary = computed(() => {
-  const n = statuses.value.length
-  if (n === 0) return 'Any status'
-  if (n === 1) return statusLabel(statuses.value[0])
-  return `${n} statuses`
-})
-
-// Close the status dropdown on an outside click.
-const statusOpen = ref(false)
-const statusRef = ref<HTMLElement | null>(null)
-function onDocClick(e: MouseEvent) {
-  if (statusOpen.value && statusRef.value && !statusRef.value.contains(e.target as Node)) {
-    statusOpen.value = false
-  }
-}
-onMounted(() => document.addEventListener('click', onDocClick))
-onBeforeUnmount(() => {
-  document.removeEventListener('click', onDocClick)
-  clearSearchTimeout()
-})
+const LIST_CHIPS = [
+  { key: 'status', title: 'Status', filter: statuses },
+  { key: 'provider', title: 'Provider', filter: providers },
+  { key: 'server', title: 'Server', filter: servers },
+  { key: 'key', title: 'API key', filter: apiKeys },
+]
 
 // Compact summary of the structured quick-filters that are active — shown as
 // removable chips so the selection stays visible even when the panel is closed.
 const activeChips = computed(() => {
   const chips: { key: string; label: string }[] = []
-  for (const s of statuses.value) chips.push({ key: `status:${s}`, label: `Status: ${statusLabel(s)}` })
+  for (const c of LIST_CHIPS) {
+    for (const v of c.filter.value) {
+      chips.push({ key: `${c.key}:${v}`, label: `${c.title}: ${c.key === 'status' ? statusLabel(v) : v}` })
+    }
+  }
   if (afterDate.value) chips.push({ key: 'after', label: `After: ${afterDate.value}` })
   if (beforeDate.value) chips.push({ key: 'before', label: `Before: ${beforeDate.value}` })
   if (hasAttachment.value) chips.push({ key: 'attachment', label: 'Has attachments' })
@@ -164,10 +177,10 @@ const activeChips = computed(() => {
 })
 
 function removeChip(key: string) {
-  if (key.startsWith('status:')) {
-    const v = key.slice('status:'.length)
-    statuses.value = statuses.value.filter((s) => s !== v)
-  } else if (key === 'attachment') hasAttachment.value = false
+  const i = key.indexOf(':')
+  const list = LIST_CHIPS.find((c) => c.key === key.slice(0, i))
+  if (list) list.filter.value = list.filter.value.filter((v) => v !== key.slice(i + 1))
+  else if (key === 'attachment') hasAttachment.value = false
   else if (key === 'after') afterDate.value = ''
   else if (key === 'before') beforeDate.value = ''
 }
@@ -230,7 +243,7 @@ function formatDate(date: string | null) {
             <input
               v-model="queryText"
               class="form-input filters__search-input"
-              placeholder="Search — from: to: subject: template: has:attachment after: before: status:"
+              placeholder="Search — from: to: subject: template: provider: server: key: has:attachment after: before: status:"
               @input="onSearchInput"
               @keyup.enter="applySearch"
             />
@@ -260,47 +273,46 @@ function formatDate(date: string | null) {
         </div>
 
         <div v-show="showFilters" class="filters__panel">
-          <div ref="statusRef" class="filters__field">
-            <label class="form-label">Status</label>
-            <div class="msel">
-              <button
-                type="button"
-                class="msel__button"
-                :class="{ 'msel__button--empty': !statuses.length, 'msel__button--open': statusOpen }"
-                @click="statusOpen = !statusOpen"
-              >
-                <span>{{ statusSummary }}</span>
-                <span class="mdi mdi-chevron-down msel__chevron"></span>
-              </button>
-              <div v-if="statusOpen" class="msel__menu">
-                <label v-for="o in STATUS_OPTIONS" :key="o.value" class="msel__option">
-                  <input
-                    type="checkbox"
-                    :checked="statuses.includes(o.value)"
-                    @change="toggleStatus(o.value)"
-                  />
-                  <span>{{ o.label }}</span>
-                </label>
+          <div class="filters__group">
+            <span class="filters__group-title">Delivery</span>
+            <div class="filters__row">
+              <div class="filters__field">
+                <label class="form-label">Status</label>
+                <MultiSelect v-model="statuses" :options="STATUS_OPTIONS" placeholder="Any status" plural="statuses" />
+              </div>
+              <div class="filters__field">
+                <label class="form-label">Provider (first recipient)</label>
+                <MultiSelect v-model="providers" :options="PROVIDER_OPTIONS" placeholder="Any provider" plural="providers" />
+              </div>
+              <div class="filters__field">
+                <label class="form-label">SMTP server</label>
+                <MultiSelect v-model="servers" :options="serverOptions" placeholder="Any server" plural="servers" />
+              </div>
+              <div class="filters__field">
+                <label class="form-label">API key</label>
+                <MultiSelect v-model="apiKeys" :options="keyOptions" placeholder="Any key" plural="keys" />
               </div>
             </div>
           </div>
 
-          <div class="filters__field">
-            <label class="form-label">After</label>
-            <input v-model="afterDate" type="date" class="form-input" />
+          <div class="filters__group">
+            <span class="filters__group-title">Date &amp; content</span>
+            <div class="filters__row">
+              <div class="filters__field">
+                <label class="form-label">After</label>
+                <input v-model="afterDate" type="date" class="form-input" />
+              </div>
+              <div class="filters__field">
+                <label class="form-label">Before</label>
+                <input v-model="beforeDate" type="date" class="form-input" />
+              </div>
+              <label class="filters__check">
+                <input v-model="hasAttachment" type="checkbox" />
+                <span>Has attachments</span>
+              </label>
+              <button class="btn btn-secondary filters__reset" @click="resetSearch">Reset</button>
+            </div>
           </div>
-
-          <div class="filters__field">
-            <label class="form-label">Before</label>
-            <input v-model="beforeDate" type="date" class="form-input" />
-          </div>
-
-          <label class="filters__check">
-            <input v-model="hasAttachment" type="checkbox" />
-            <span>Has attachments</span>
-          </label>
-
-          <button class="btn btn-secondary filters__reset" @click="resetSearch">Reset</button>
         </div>
       </div>
 
@@ -541,10 +553,30 @@ function formatDate(date: string | null) {
 
 .filters__panel {
   display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-top: 2px;
+}
+
+.filters__group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.filters__group-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.filters__row {
+  display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 14px 16px;
-  padding-top: 2px;
 }
 
 .filters__field {
@@ -563,86 +595,6 @@ function formatDate(date: string | null) {
 .filters__field .form-input,
 .filters__field .form-select {
   height: 44px;
-}
-
-.msel {
-  position: relative;
-}
-
-.msel__button {
-  width: 100%;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 12px 0 14px;
-  border: 1px solid var(--border-input);
-  border-radius: var(--radius);
-  background: var(--bg-input);
-  color: var(--text-primary);
-  font-size: 14px;
-  font-family: inherit;
-  cursor: pointer;
-  text-align: left;
-  transition: border-color var(--transition), box-shadow var(--transition);
-}
-
-.msel__button--open {
-  border-color: var(--primary-600);
-  box-shadow: var(--shadow-focus);
-}
-
-.msel__button--empty {
-  color: var(--text-tertiary);
-}
-
-.msel__chevron {
-  font-size: 18px;
-  color: var(--text-tertiary);
-  transition: transform var(--transition);
-}
-
-.msel__button--open .msel__chevron {
-  transform: rotate(180deg);
-}
-
-.msel__menu {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 4px);
-  left: 0;
-  min-width: 100%;
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-input);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-lg);
-}
-
-.msel__option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 8px;
-  border-radius: var(--radius-sm);
-  font-size: 14px;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.msel__option:hover {
-  background: var(--bg-hover);
-}
-
-.msel__option input {
-  width: 15px;
-  height: 15px;
-  cursor: pointer;
 }
 
 .filters__check {
