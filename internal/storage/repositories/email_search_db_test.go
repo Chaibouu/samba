@@ -35,9 +35,15 @@ func seedSearchEmails(t *testing.T, tx *gorm.DB) ResourceScope {
 	}
 	user := createUser(t, tx, "search-owner@test.local")
 	ws := uintPtr(90101)
+	key := &models.APIKey{UserID: user, WorkspaceID: ws, Name: "Billing service", KeyHash: "x", KeyPrefix: "pk_test"}
+	if err := tx.Create(key).Error; err != nil {
+		t.Fatalf("create api key: %v", err)
+	}
 	emails := []models.Email{
-		{Sender: "noreply@acme.com", Subject: "Weekly report", Recipients: pq.StringArray{"solo@example.com"}},
-		{Sender: "noreply@acme.com", Subject: "Invoice", Recipients: pq.StringArray{"first@example.com", "second@example.com"}},
+		{Sender: "noreply@acme.com", Subject: "Weekly report", Recipients: pq.StringArray{"solo@example.com"},
+			Provider: "Google Workspace", SMTPHostname: "smtp.acme.com"},
+		{Sender: "noreply@acme.com", Subject: "Invoice", Recipients: pq.StringArray{"first@example.com", "second@example.com"},
+			Provider: "Other", SMTPHostname: "smtps.relay.net", APIKeyID: &key.ID},
 		{Sender: "noreply@acme.com", Subject: "Welcome second@example.com", Recipients: pq.StringArray{"other@example.com"}},
 	}
 	for i := range emails {
@@ -87,6 +93,15 @@ func TestFindByScopeFiltered_Search(t *testing.T) {
 		{"to: matches any of several recipients", "to:second@example.com", []string{"Invoice"}},
 		{"subject: stays subject-only", "subject:second@example.com", []string{"Welcome second@example.com"}},
 		{"bare words merge into subject: as before", "subject:weekly report", []string{"Weekly report"}},
+		{"provider: matches case-insensitively", "provider:google", []string{"Weekly report"}},
+		{"provider: accepts a quoted name", `provider:"google workspace"`, []string{"Weekly report"}},
+		{"server: matches the SMTP hostname", "server:relay", []string{"Invoice"}},
+		{"key: matches the API key name", "key:billing", []string{"Invoice"}},
+		{"key: with no matching key finds nothing", "key:nope", nil},
+		{"provider: list matches any provider", "provider:gmail,google", []string{"Weekly report"}},
+		{"provider: list matches several emails", "provider:google,other", []string{"Invoice", "Weekly report"}},
+		{"server: list matches any server", "server:acme,relay", []string{"Invoice", "Weekly report"}},
+		{"key: list matches any key", "key:nope,billing", []string{"Invoice"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

@@ -31,6 +31,9 @@ const (
 	opTo       = "to"
 	opSubject  = "subject"
 	opTemplate = "template"
+	opProvider = "provider"
+	opServer   = "server"
+	opKey      = "key"
 	opStatus   = "status"
 	opHas      = "has"
 	opAfter    = "after"
@@ -49,6 +52,9 @@ type EmailFilter struct {
 	Subject       string
 	Text          string
 	Template      string
+	Providers     []string
+	Servers       []string
+	APIKeys       []string
 	Statuses      []string
 	HasAttachment bool
 	After         *time.Time
@@ -61,7 +67,9 @@ type EmailFilter struct {
 const maxSearchQueryLen = 512
 
 // ParseSearchQuery turns a Twitter-style search string into an EmailFilter.
-// Supported operators: from: to: subject: template: status: has:attachment after: before:
+// Supported operators: from: to: subject: template: provider: server: key:
+// status: has:attachment after: before:
+// provider:, server:, key: and status: accept comma-separated lists.
 // Bare words (no known prefix) match the subject or any recipient, or narrow
 // Subject when subject: is given.
 //
@@ -91,6 +99,12 @@ func ParseSearchQuery(q string) EmailFilter {
 			f.appendSubject(val)
 		case opTemplate:
 			f.Template = val
+		case opProvider:
+			f.Providers = splitList(val)
+		case opServer:
+			f.Servers = splitList(val)
+		case opKey:
+			f.APIKeys = splitList(val)
 		case opStatus:
 			// Accept a comma-separated list, e.g. status:sent,failed.
 			for _, s := range strings.Split(val, ",") {
@@ -131,6 +145,17 @@ func ParseSearchQuery(q string) EmailFilter {
 	return f
 }
 
+// splitList splits a comma-separated operator value, dropping empty items.
+func splitList(val string) []string {
+	var out []string
+	for _, s := range strings.Split(val, ",") {
+		if s = strings.TrimSpace(s); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 func (f *EmailFilter) appendSubject(s string) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -156,6 +181,17 @@ func likePattern(term string) string {
 		return strings.ReplaceAll(s, "*", "%")
 	}
 	return "%" + s + "%"
+}
+
+// likeAny builds a predicate matching col against any of the terms.
+func likeAny(col string, terms []string) (string, []any) {
+	conds := make([]string, len(terms))
+	args := make([]any, len(terms))
+	for i, t := range terms {
+		conds[i] = col + " LIKE ?"
+		args[i] = likePattern(t)
+	}
+	return "(" + strings.Join(conds, " OR ") + ")", args
 }
 
 // sortColumns whitelists the user-facing sort keys to real, safe column names.

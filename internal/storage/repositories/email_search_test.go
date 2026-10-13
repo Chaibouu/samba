@@ -128,6 +128,16 @@ func TestParseSearchQuery(t *testing.T) {
 			want: EmailFilter{Template: "welcome-email"},
 		},
 		{
+			name: "provider, server and key operators",
+			q:    `provider:"google workspace" server:smtp.acme.com key:billing`,
+			want: EmailFilter{Providers: []string{"google workspace"}, Servers: []string{"smtp.acme.com"}, APIKeys: []string{"billing"}},
+		},
+		{
+			name: "provider, server and key accept comma-separated lists",
+			q:    `provider:Gmail,Yandex server:a.com,b.com key:"Billing, ,Ops"`,
+			want: EmailFilter{Providers: []string{"Gmail", "Yandex"}, Servers: []string{"a.com", "b.com"}, APIKeys: []string{"Billing", "Ops"}},
+		},
+		{
 			name: "unknown prefix falls back to free text",
 			q:    "cc:someone",
 			want: EmailFilter{Text: "cc:someone"},
@@ -148,6 +158,15 @@ func TestParseSearchQuery(t *testing.T) {
 			}
 			if got.Text != tc.want.Text {
 				t.Errorf("Text = %q, want %q", got.Text, tc.want.Text)
+			}
+			if strings.Join(got.Providers, ",") != strings.Join(tc.want.Providers, ",") {
+				t.Errorf("Providers = %v, want %v", got.Providers, tc.want.Providers)
+			}
+			if strings.Join(got.Servers, ",") != strings.Join(tc.want.Servers, ",") {
+				t.Errorf("Servers = %v, want %v", got.Servers, tc.want.Servers)
+			}
+			if strings.Join(got.APIKeys, ",") != strings.Join(tc.want.APIKeys, ",") {
+				t.Errorf("APIKeys = %v, want %v", got.APIKeys, tc.want.APIKeys)
 			}
 			if got.Template != tc.want.Template {
 				t.Errorf("Template = %q, want %q", got.Template, tc.want.Template)
