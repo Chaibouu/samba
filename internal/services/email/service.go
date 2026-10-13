@@ -1406,7 +1406,7 @@ func resolveSenderWithDefault(from, defaultName string) string {
 		return from
 	}
 	if !isASCII(defaultName) {
-		return strings.Join(encodeWords(defaultName), " ") + " <" + addr.Address + ">"
+		return fmt.Sprintf("%q <%s>", defaultName, addr.Address)
 	}
 	return (&mail.Address{Name: defaultName, Address: addr.Address}).String()
 }

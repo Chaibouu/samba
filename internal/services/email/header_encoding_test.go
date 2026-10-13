@@ -126,6 +126,32 @@ func TestBuildMessageDefaultSenderNameSplitsBetweenWords(t *testing.T) {
 	}
 }
 
+// A readable UTF-8 sender (as stored for display) is encoded only on the wire,
+// and senders stored pre-encoded by older versions still go out intact.
+func TestBuildMessageEncodesNonASCIISender(t *testing.T) {
+	const name = "Санаторий.ру"
+	for _, from := range []string{
+		`"Санаторий.ру" <noreply@sanatory.ru>`,
+		"=?UTF-8?b?0KHQsNC90LDRgtC+0YDQuNC5LtGA0YM=?= <noreply@sanatory.ru>",
+	} {
+		raw := buildMessage(from, []string{"rcpt@example.com"},
+			"subject", "", "body", nil, nil, "", "", false)
+
+		head, _, _ := strings.Cut(string(raw), "\r\n\r\n")
+		if !isASCII(head) {
+			t.Errorf("from %q: header is not ASCII:\n%s", from, head)
+		}
+		msg, err := mail.ReadMessage(strings.NewReader(string(raw)))
+		if err != nil {
+			t.Fatalf("from %q: built message does not parse: %v", from, err)
+		}
+		addrs, err := msg.Header.AddressList("From")
+		if err != nil || len(addrs) != 1 || addrs[0].Name != name || addrs[0].Address != "noreply@sanatory.ru" {
+			t.Errorf("from %q: From parses as %v (%v), want %q <noreply@sanatory.ru>", from, addrs, err, name)
+		}
+	}
+}
+
 // Plain text that merely looks like an encoded-word must reach the reader as
 // written, not be decoded by their client.
 func TestBuildMessageSubjectKeepsLiteralEncodedWordSyntax(t *testing.T) {

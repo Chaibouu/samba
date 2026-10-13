@@ -350,6 +350,15 @@ func encodeWords(s string) []string {
 	return chunks
 }
 
+// encodeFrom encodes a non-ASCII sender name, folded between encoded-words.
+func encodeFrom(from string) string {
+	addr, err := mail.ParseAddress(from)
+	if err != nil || isASCII(addr.Name) {
+		return from
+	}
+	return strings.Join(encodeWords(addr.Name), "\r\n ") + " <" + addr.Address + ">"
+}
+
 // foldPlain folds plain text at spaces so that, after "Subject: ", each line
 // stays within the 78 characters RFC 5322 §2.1.1 recommends.
 func foldPlain(s string) string {
@@ -398,9 +407,7 @@ func newBoundary() string {
 func buildMessage(from string, to []string, subject, htmlBody, textBody string, attachments []models.Attachment, headers map[string]string, listUnsubscribeURL, listUnsubscribeMailto string, listUnsubscribePost bool) []byte {
 	var b strings.Builder
 
-	// Fold between encoded-words only when writing the header: from is still
-	// parsed with net/mail, which cannot read a folded address.
-	fmt.Fprintf(&b, "From: %s\r\n", strings.ReplaceAll(from, "?= =?", "?=\r\n =?"))
+	fmt.Fprintf(&b, "From: %s\r\n", encodeFrom(from))
 	fmt.Fprintf(&b, "To: %s\r\n", strings.Join(to, ", "))
 	fmt.Fprintf(&b, "Subject: %s\r\n", encodeHeader(subject))
 
