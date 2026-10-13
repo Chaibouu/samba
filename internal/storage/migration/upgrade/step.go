@@ -57,6 +57,10 @@ var registry = []Step{
 		ID:    "2026-08-28-default-workspace",
 		Apply: applyDefaultWorkspace,
 	},
+	{
+		ID:    "2026-10-13-decode-email-senders",
+		Apply: applyDecodeEmailSenders,
+	},
 }
 
 func Registry() []Step {
