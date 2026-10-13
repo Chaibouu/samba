@@ -34,6 +34,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/goposta/posta/internal/models"
@@ -309,6 +310,66 @@ func isASCII(s string) bool {
 	return true
 }
 
+// encodeHeader encodes s for an unstructured header such as Subject, folding
+// its encoded-words onto separate lines. Plain text containing "=?" is encoded
+// too, or a reader would decode what merely looks like an encoded-word.
+func encodeHeader(s string) string {
+	if mime.BEncoding.Encode("UTF-8", s) == s && !strings.Contains(s, "=?") {
+		return foldPlain(s)
+	}
+	return strings.Join(encodeWords(s), "\r\n ")
+}
+
+// encodeWords encodes s as RFC 2047 encoded-words. RFC 2047 ignores the
+// whitespace between encoded-words, but some relays keep it when they
+// re-encode the header, so encoded-words break only at spaces; a break inside
+// a word would reach the reader as a stray space.
+func encodeWords(s string) []string {
+	// 39 bytes encode to 52 base64 characters, so even the first line, after
+	// "Subject: ", stays within the 76 characters RFC 2047 allows a line that
+	// carries encoded-words.
+	const limit = 39
+	chunks := []string{""}
+	for i, w := range strings.Split(s, " ") {
+		if i > 0 {
+			w = " " + w
+		}
+		if n := len(chunks) - 1; chunks[n] != "" && len(chunks[n])+len(w) > limit {
+			chunks = append(chunks, "")
+		}
+		for _, r := range w {
+			if n := len(chunks) - 1; len(chunks[n])+utf8.RuneLen(r) > limit {
+				chunks = append(chunks, "")
+			}
+			chunks[len(chunks)-1] += string(r)
+		}
+	}
+	for i, c := range chunks {
+		chunks[i] = "=?UTF-8?b?" + base64.StdEncoding.EncodeToString([]byte(c)) + "?="
+	}
+	return chunks
+}
+
+// foldPlain folds plain text at spaces so that, after "Subject: ", each line
+// stays within the 78 characters RFC 5322 §2.1.1 recommends.
+func foldPlain(s string) string {
+	var b strings.Builder
+	n := len("Subject: ")
+	for i, w := range strings.Split(s, " ") {
+		if i > 0 {
+			if w != "" && n+1+len(w) > 78 {
+				b.WriteString("\r\n")
+				n = 0
+			}
+			b.WriteByte(' ')
+			n++
+		}
+		b.WriteString(w)
+		n += len(w)
+	}
+	return b.String()
+}
+
 // hasHeader reports whether the caller-supplied headers already include key
 // (header names are case-insensitive per RFC 5322).
 func hasHeader(headers map[string]string, key string) bool {
@@ -337,9 +398,11 @@ func newBoundary() string {
 func buildMessage(from string, to []string, subject, htmlBody, textBody string, attachments []models.Attachment, headers map[string]string, listUnsubscribeURL, listUnsubscribeMailto string, listUnsubscribePost bool) []byte {
 	var b strings.Builder
 
-	fmt.Fprintf(&b, "From: %s\r\n", from)
+	// Fold between encoded-words only when writing the header: from is still
+	// parsed with net/mail, which cannot read a folded address.
+	fmt.Fprintf(&b, "From: %s\r\n", strings.ReplaceAll(from, "?= =?", "?=\r\n =?"))
 	fmt.Fprintf(&b, "To: %s\r\n", strings.Join(to, ", "))
-	fmt.Fprintf(&b, "Subject: %s\r\n", mime.QEncoding.Encode("UTF-8", subject))
+	fmt.Fprintf(&b, "Subject: %s\r\n", encodeHeader(subject))
 
 	// RFC 5322 requires Date and recommends Message-ID; relays are free to
 	// forward a message without adding them, so emit both unless the caller
