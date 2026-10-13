@@ -45,12 +45,12 @@ curl "http://localhost:9000/api/v1/workspaces/current/emails?page=0&size=20" \
 ## Search operators
 
 The `q` parameter is a single search string that accepts operators. Words
-without an operator match the **subject** — the body is not searched (it may be
-stored as a blob or redacted).
+without an operator match the **subject or any recipient** — the body is not
+searched (it may be stored as a blob or redacted).
 
 | Operator | Matches | Example |
 |----------|---------|---------|
-| _(bare text)_ | Subject | `invoice reminder` |
+| _(bare text)_ | Subject or any recipient | `invoice reminder`, `bob@example.com` |
 | `subject:` | Subject | `subject:"weekly report"` |
 | `from:` | Sender address | `from:alice@acme.com` |
 | `to:` | Any recipient | `to:bob@example.com` |
@@ -73,7 +73,8 @@ stored as a blob or redacted).
 - Dates bound `created_at`. A `YYYY-MM-DD` value is treated as a whole day, so
   `before:` is inclusive of that day; a full RFC3339 timestamp is used as the
   exact instant.
-- Operators combine with **AND**. Any bare words are merged into the subject search.
+- Operators combine with **AND**. When `subject:` is present, bare words are
+  merged into the subject search and recipients are not searched.
 
 ## Sorting
 

@@ -130,6 +130,11 @@ func (r *EmailRepository) FindByScopeFiltered(scope ResourceScope, f EmailFilter
 		if f.Subject != "" {
 			q = q.Where("LOWER(subject) LIKE ?", likePattern(f.Subject))
 		}
+		if f.Text != "" {
+			pat := likePattern(f.Text)
+			q = q.Where("(LOWER(subject) LIKE ? OR EXISTS (SELECT 1 FROM unnest(recipients) AS r WHERE LOWER(r) LIKE ?))",
+				pat, pat)
+		}
 		if f.Template != "" {
 			q = q.Where("LOWER(template_name) LIKE ?", likePattern(f.Template))
 		}

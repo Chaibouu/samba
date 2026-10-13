@@ -52,8 +52,13 @@ func TestParseSearchQuery(t *testing.T) {
 			want: EmailFilter{},
 		},
 		{
-			name: "bare words become subject",
+			name: "bare words become free text",
 			q:    "weekly invoice",
+			want: EmailFilter{Text: "weekly invoice"},
+		},
+		{
+			name: "bare words merge into subject when subject: is given",
+			q:    "subject:weekly invoice",
 			want: EmailFilter{Subject: "weekly invoice"},
 		},
 		{
@@ -125,7 +130,7 @@ func TestParseSearchQuery(t *testing.T) {
 		{
 			name: "unknown prefix falls back to free text",
 			q:    "cc:someone",
-			want: EmailFilter{Subject: "cc:someone"},
+			want: EmailFilter{Text: "cc:someone"},
 		},
 	}
 
@@ -140,6 +145,9 @@ func TestParseSearchQuery(t *testing.T) {
 			}
 			if got.Subject != tc.want.Subject {
 				t.Errorf("Subject = %q, want %q", got.Subject, tc.want.Subject)
+			}
+			if got.Text != tc.want.Text {
+				t.Errorf("Text = %q, want %q", got.Text, tc.want.Text)
 			}
 			if got.Template != tc.want.Template {
 				t.Errorf("Template = %q, want %q", got.Template, tc.want.Template)

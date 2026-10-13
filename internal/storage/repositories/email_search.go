@@ -47,6 +47,7 @@ type EmailFilter struct {
 	Sender        string
 	Recipient     string
 	Subject       string
+	Text          string
 	Template      string
 	Statuses      []string
 	HasAttachment bool
@@ -61,7 +62,8 @@ const maxSearchQueryLen = 512
 
 // ParseSearchQuery turns a Twitter-style search string into an EmailFilter.
 // Supported operators: from: to: subject: template: status: has:attachment after: before:
-// Bare words (no known prefix) accumulate into Subject as a free-text search.
+// Bare words (no known prefix) match the subject or any recipient, or narrow
+// Subject when subject: is given.
 //
 // Example:
 //
@@ -120,7 +122,11 @@ func ParseSearchQuery(q string) EmailFilter {
 	}
 
 	if len(free) > 0 {
-		f.appendSubject(strings.Join(free, " "))
+		if f.Subject != "" {
+			f.appendSubject(strings.Join(free, " "))
+		} else {
+			f.Text = strings.Join(free, " ")
+		}
 	}
 	return f
 }
