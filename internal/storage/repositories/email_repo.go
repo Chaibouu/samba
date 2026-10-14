@@ -130,8 +130,25 @@ func (r *EmailRepository) FindByScopeFiltered(scope ResourceScope, f EmailFilter
 		if f.Subject != "" {
 			q = q.Where("LOWER(subject) LIKE ?", likePattern(f.Subject))
 		}
+		if f.Text != "" {
+			pat := likePattern(f.Text)
+			q = q.Where("(LOWER(subject) LIKE ? OR EXISTS (SELECT 1 FROM unnest(recipients) AS r WHERE LOWER(r) LIKE ?))",
+				pat, pat)
+		}
 		if f.Template != "" {
 			q = q.Where("LOWER(template_name) LIKE ?", likePattern(f.Template))
+		}
+		if len(f.Providers) > 0 {
+			cond, args := likeAny("LOWER(provider)", f.Providers)
+			q = q.Where(cond, args...)
+		}
+		if len(f.Servers) > 0 {
+			cond, args := likeAny("LOWER(smtp_hostname)", f.Servers)
+			q = q.Where(cond, args...)
+		}
+		if len(f.APIKeys) > 0 {
+			cond, args := likeAny("LOWER(k.name)", f.APIKeys)
+			q = q.Where("EXISTS (SELECT 1 FROM api_keys k WHERE k.id = emails.api_key_id AND "+cond+")", args...)
 		}
 		if len(f.Statuses) > 0 {
 			q = q.Where("status IN ?", f.Statuses)

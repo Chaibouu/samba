@@ -45,16 +45,19 @@ curl "http://localhost:9000/api/v1/workspaces/current/emails?page=0&size=20" \
 ## Search operators
 
 The `q` parameter is a single search string that accepts operators. Words
-without an operator match the **subject** — the body is not searched (it may be
-stored as a blob or redacted).
+without an operator match the **subject or any recipient** — the body is not
+searched (it may be stored as a blob or redacted).
 
 | Operator | Matches | Example |
 |----------|---------|---------|
-| _(bare text)_ | Subject | `invoice reminder` |
+| _(bare text)_ | Subject or any recipient | `invoice reminder`, `bob@example.com` |
 | `subject:` | Subject | `subject:"weekly report"` |
 | `from:` | Sender address | `from:alice@acme.com` |
 | `to:` | Any recipient | `to:bob@example.com` |
 | `template:` | Template name | `template:welcome` |
+| `provider:` | Mailbox provider of the first recipient (Gmail, Yandex, Other, …), comma-separated | `provider:gmail,yandex` |
+| `server:` | SMTP server hostname used to send, comma-separated | `server:smtp.acme.com` |
+| `key:` | Name of the API key used to send, comma-separated | `key:billing` |
 | `has:attachment` | Emails that have attachments | `has:attachment` |
 | `status:` | One or more statuses (comma-separated) | `status:failed,suppressed` |
 | `after:` | Created on/after a date | `after:2026-07-01` |
@@ -62,18 +65,20 @@ stored as a blob or redacted).
 
 **Matching rules**
 
-- Text operators (`from:`, `to:`, `subject:`, `template:`) and bare words use
+- Text operators (`from:`, `to:`, `subject:`, `template:`, `provider:`,
+  `server:`, `key:`) and bare words use
   **case-insensitive substring** matching.
 - Use `*` as a wildcard: `to:*@example.com` matches addresses ending in
   `@example.com`; `subject:invoice*` matches subjects that start with "invoice".
 - Wrap multi-word values in quotes: `subject:"payment failed"`.
-- `status:` accepts a comma-separated list; an email matches if it is in **any**
-  of the listed statuses. See [Email Status](/docs/email-sending/email-status)
-  for the status values.
+- `status:`, `provider:`, `server:` and `key:` accept a comma-separated list;
+  an email matches if it matches **any** of the listed values. See
+  [Email Status](/docs/email-sending/email-status) for the status values.
 - Dates bound `created_at`. A `YYYY-MM-DD` value is treated as a whole day, so
   `before:` is inclusive of that day; a full RFC3339 timestamp is used as the
   exact instant.
-- Operators combine with **AND**. Any bare words are merged into the subject search.
+- Operators combine with **AND**. When `subject:` is present, bare words are
+  merged into the subject search and recipients are not searched.
 
 ## Sorting
 

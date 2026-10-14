@@ -34,6 +34,8 @@ func TestResolveSenderWithDefault(t *testing.T) {
 		{"whitespace default leaves bare address", "hello@example.com", "   ", "hello@example.com"},
 		{"unparseable input is untouched", "not-an-email", "Acme", "not-an-email"},
 		{"name needing quoting is escaped", "hello@example.com", "Acme, Inc.", "\"Acme, Inc.\" <hello@example.com>"},
+		{"non-ASCII name stays readable", "noreply@sanatory.ru", "Санаторий.ру", "\"Санаторий.ру\" <noreply@sanatory.ru>"},
+		{"non-ASCII name with quote is escaped", "noreply@sanatory.ru", `Ёлка "Плюс"`, `"Ёлка \"Плюс\"" <noreply@sanatory.ru>`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
