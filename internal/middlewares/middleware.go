@@ -24,8 +24,9 @@
 //
 //   - A user JWT, presented by the dashboard as an HttpOnly session cookie or by
 //     CLI/SDK clients as `Authorization: Bearer <jwt>`.
-//   - An API key (psk_…), presented as `Authorization: Bearer psk_…` or, for
-//     browser-direct streams that cannot set headers, as `?token=psk_…`.
+//   - An API key (psk_…), presented as `Authorization: Bearer psk_…`. It is
+//     never read from the URL, where it would leak into proxy logs, browser
+//     history, and Referer headers.
 //
 // Authenticate accepts either. APIKeyAuth accepts only the latter, and the
 // admin JWT middleware only the former.
@@ -169,16 +170,13 @@ func firstStore(stores []*sessionpkg.Store) *sessionpkg.Store {
 
 // Authenticate accepts either a user JWT or an API key.
 //
-// API keys (psk_…) are read from the Authorization header or the `?token=` query
-// param — the latter so browser-direct streams (EventSource, download links) and
-// machine clients can authenticate without headers. Any other credential is
-// treated as a JWT and resolved by okapi from the header or the session cookie.
+// API keys (psk_…) are read from the Authorization header only. Any other
+// credential is treated as a JWT and resolved by okapi from the header or the
+// session cookie. Browser-direct streams (EventSource, download links) rely on
+// the cookie, so no credential is ever accepted from the query string.
 func Authenticate(jwtAuth okapi.JWTAuth, keyService *auth.APIKeyService, userRepo *repositories.UserRepository, keyRepo *repositories.APIKeyRepository) okapi.Middleware {
 	return func(c *okapi.Context) error {
 		raw := bearerToken(c)
-		if raw == "" {
-			raw = strings.TrimSpace(c.Query("token"))
-		}
 		if strings.HasPrefix(raw, auth.APIKeyPrefix) {
 			return authenticateAPIKey(c, keyService, userRepo, keyRepo, raw)
 		}

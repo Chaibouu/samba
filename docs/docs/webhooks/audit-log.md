@@ -113,12 +113,16 @@ GET /api/v1/admin/events?page=1&size=20&category=email
 Subscribe to real-time events via Server-Sent Events:
 
 ```
-GET /api/v1/admin/events/stream?token=<jwt-token>
+GET /api/v1/admin/events/stream
+Authorization: Bearer <jwt-token>
 ```
+
+From the dashboard's origin, `EventSource` authenticates with the session cookie; tokens are never accepted in the query string.
 
 ```javascript
 const eventSource = new EventSource(
-  'http://localhost:9000/api/v1/admin/events/stream?token=your-jwt'
+  'http://localhost:9000/api/v1/admin/events/stream',
+  { withCredentials: true }
 );
 
 eventSource.onmessage = (event) => {

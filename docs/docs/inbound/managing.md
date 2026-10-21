@@ -121,12 +121,13 @@ Streams an attachment by zero-based index for an inbound email you own. Unlike t
 GET /api/v1/workspaces/current/inbound-stream
 ```
 
-A Server-Sent Events stream of inbound-email events for the current user. Because `EventSource` cannot set headers, this endpoint authenticates with the JWT as a **query parameter** instead of the `Authorization` header.
+A Server-Sent Events stream of inbound-email events for the current user. It authenticates like any other endpoint, with an `Authorization: Bearer` header (JWT or API key). In the browser, `EventSource` cannot set headers, so it relies on the dashboard's session cookie instead. Credentials are never accepted in the query string.
 
 Events emitted: `email.inbound.received`, `email.inbound.forwarded`, and `email.inbound.failed`. An initial `system.info` event is sent on connect, and the server pings every 30 seconds to keep the connection alive. Events from other users' inboxes are filtered out.
 
 ```bash
-curl -N "http://localhost:9000/api/v1/workspaces/current/inbound-stream?token=<jwt>&workspace_id=1"
+curl -N -H "Authorization: Bearer <jwt-or-api-key>" \
+  "http://localhost:9000/api/v1/workspaces/current/inbound-stream?workspace_id=1"
 ```
 
 Each event's `data` carries the inbound details, including `inbound_id`, `sender`, `recipients`, `subject`, `source`, `size`, and `workspace_id`.

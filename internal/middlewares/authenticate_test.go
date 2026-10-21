@@ -168,7 +168,6 @@ func TestAuthenticate_RoutesAPIKeyPrefixToKeyPath(t *testing.T) {
 	}{
 		{"header", func(r *http.Request) { r.Header.Set("Authorization", "Bearer psk_deadbeef") }},
 		{"bare header", func(r *http.Request) { r.Header.Set("Authorization", "psk_deadbeef") }},
-		{"query", func(r *http.Request) { r.URL.RawQuery = "token=psk_deadbeef" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			defer func() {
@@ -186,6 +185,20 @@ func TestAuthenticate_RoutesAPIKeyPrefixToKeyPath(t *testing.T) {
 			c := okapi.NewContext(o.Okapi, httptest.NewRecorder(), req)
 			_ = mw(c)
 		})
+	}
+}
+
+// An API key in the URL leaks into proxy logs and Referer headers, so it must
+// not authenticate. The nil collaborators would panic if the API-key path were
+// reached; a clean 401 proves it never was.
+func TestAuthenticate_RefusesAPIKeyInQuery(t *testing.T) {
+	o := jwtOnlyServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/protected?token=psk_deadbeef", nil)
+	rec := httptest.NewRecorder()
+	o.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rec.Code)
 	}
 }
 

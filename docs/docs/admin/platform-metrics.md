@@ -92,7 +92,8 @@ Lists platform activity and system events. Supports optional category filtering 
 Stream platform events in real-time:
 
 ```
-GET /api/v1/admin/events/stream?token=<jwt-token>
+GET /api/v1/admin/events/stream
+Authorization: Bearer <jwt-token>
 ```
 
 ### Metrics Stream (SSE)
@@ -100,8 +101,11 @@ GET /api/v1/admin/events/stream?token=<jwt-token>
 Monitor background worker activity and API server runtime stats:
 
 ```
-GET /api/v1/admin/metrics/stream?token=<jwt-token>
+GET /api/v1/admin/metrics/stream
+Authorization: Bearer <jwt-token>
 ```
+
+In the browser, `EventSource` sends the dashboard's session cookie instead; tokens are never accepted in the query string.
 
 Emits two event types:
 

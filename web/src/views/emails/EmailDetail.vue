@@ -198,6 +198,7 @@ function parseHeaders(json: string): Record<string, string> | null {
             <iframe
               v-if="activeTab === 'html'"
               :srcdoc="email.html_body"
+              sandbox=""
               style="width: 100%; min-height: 400px; border: 1px solid var(--border-primary); border-radius: var(--radius)"
             ></iframe>
             <pre
