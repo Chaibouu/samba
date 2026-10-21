@@ -1,0 +1,7 @@
+{$POSTA_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy posta:9000 {
+		# Server-Sent Events (live dashboard streams) must not be buffered.
+		flush_interval -1
+	}
+}
